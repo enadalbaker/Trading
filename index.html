@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لوحة السوق الأمريكي المباشرة</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#14181f;--mut:#667085;--bd:#e3e6eb;--up:#0f9d58;--dn:#d93025;--ac:#2456d6;--wb:#fff4e0;--wt:#b45309;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#181c24;--tx:#e8eaee;--mut:#98a2b3;--bd:#2a303b;--up:#34c77b;--dn:#ff6b60;--ac:#7aa2ff;--wb:#2a2113;--wt:#f5b45a;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.7}
+.w{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:4px 0}h2{font-size:1.05rem;margin:22px 0 10px}
+.sub{color:var(--mut);font-size:.82rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.v{font-size:1.1rem;font-weight:700;direction:ltr;text-align:right}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.al{background:var(--wb);color:var(--wt);border:1px solid var(--wt);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:.9rem}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1;min-width:100px;padding:9px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font-size:1rem;direction:ltr}
+button{padding:9px 14px;border:0;border-radius:10px;background:var(--ac);color:#fff;font-size:.95rem;cursor:pointer}
+.x{background:var(--dn);padding:3px 9px}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th,td{padding:6px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
+.tw{overflow-x:auto}
+a{color:var(--ac);text-decoration:none}
+.n{padding:8px 0;border-bottom:1px solid var(--bd);font-size:.9rem}
+footer{margin:24px 0;color:var(--mut);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="w">
+<h1>📈 لوحة السوق الأمريكي المباشرة</h1>
+<div class="sub" id="st">أدخل مفتاح Finnhub المجاني للبدء.</div>
+
+<h2>⚙️ الإعدادات</h2>
+<div class="c"><div class="row"><input id="key" type="password" placeholder="Finnhub API key"><button id="sk">حفظ وتحديث</button></div>
+<div class="sub" style="margin-top:6px">مفتاح مجاني من finnhub.io. يُحفظ في متصفحك فقط، لا ترفعه على GitHub.</div></div>
+
+<h2>المؤشرات (عبر صناديق ETF)</h2>
+<div class="grid" id="mk"></div>
+
+<h2>🚨 تنبيهات الفرص والمخاطر</h2>
+<div id="al"><div class="sub">أضف أسهماً لتظهر التنبيهات.</div></div>
+
+<h2>💼 أسهمي</h2>
+<div class="c">
+<div class="row"><input id="s" placeholder="الرمز NVDA" maxlength="10"><input id="q" type="number" step="any" placeholder="الكمية (اختياري)"><input id="b" type="number" step="any" placeholder="سعر الشراء (اختياري)"><input id="t" type="number" step="any" placeholder="السعر المتوقع (اختياري)"><button id="add">إضافة</button></div>
+<div class="tw" style="margin-top:8px"><table><thead><tr><th>السهم</th><th>الحالي</th><th>اليوم</th><th>الكمية</th><th>الشراء</th><th>ربح/خسارة</th><th>المتوقع</th><th>للهدف</th><th>المحللون</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+<div id="tot" style="margin-top:8px;font-weight:700"></div>
+</div>
+
+<h2>📰 أخبار أسهمي</h2><div class="c" id="cn"><div class="sub">—</div></div>
+<h2>📰 أخبار السوق</h2><div class="c" id="gn"><div class="sub">—</div></div>
+
+<footer>بيانات Finnhub (قد تتأخر وتتوقف خارج ساعات السوق). المعلومات للاطلاع فقط وليست نصيحة استثمارية، والتنبيهات قواعد آلية بسيطة وليست توصيات شراء أو بيع.</footer>
+</div>
+<script>
+var $=function(i){return document.getElementById(i)};
+var KEY=localStorage.getItem("fk")||"",items=[];
+try{items=JSON.parse(localStorage.getItem("pf")||"[]")}catch(e){}
+var ETFS=[["SPY","S&P 500"],["QQQ","Nasdaq 100"],["DIA","Dow"],["IWM","Russell 2000"],["GLD","ذهب"],["USO","نفط"]];
+var Q={},M={},R={};
+function save(){localStorage.setItem("pf",JSON.stringify(items))}
+function f(n){return isFinite(n)&&n!==null?Number(n).toLocaleString("en-US",{maximumFractionDigits:2}):"-"}
+function cl(n){return n>0?"up":n<0?"dn":""}
+function h(tag,txt,c){var e=document.createElement(tag);if(txt!=null)e.textContent=txt;if(c)e.className=c;return e}
+async function api(p){var r=await fetch("https://finnhub.io/api/v1/"+p+(p.indexOf("?")>-1?"&":"?")+"token="+encodeURIComponent(KEY));if(!r.ok)throw new Error(r.status);return r.json()}
+function syms(){return ETFS.map(function(e){return e[0]}).concat(items.map(function(i){return i.s}))}
+async function quotes(){
+  if(!KEY)return;
+  await Promise.all(syms().map(async function(s){try{Q[s]=await api("quote?symbol="+s)}catch(e){}}));
+  $("st").textContent="آخر تحديث: "+new Date().toLocaleTimeString("ar-KW")+" (يتحدث كل دقيقة)";
+  draw();
+}
+async function meta(){
+  if(!KEY)return;
+  await Promise.all(items.map(async function(i){
+    if(!M[i.s])try{M[i.s]=(await api("stock/metric?symbol="+i.s+"&metric=all")).metric||{}}catch(e){}
+    if(!R[i.s])try{R[i.s]=(await api("stock/recommendation?symbol="+i.s))[0]||null}catch(e){}
+  }));
+  draw();
+}
+async function news(){
+  if(!KEY)return;
+  var to=new Date().toISOString().slice(0,10),fr=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  function fill(el,arr){el.textContent="";if(!arr.length){el.appendChild(h("div","لا توجد أخبار.","sub"));return}
+    arr.forEach(function(n){var d=h("div",null,"n"),a=h("a",n.headline);if(/^https?:\/\//.test(n.url)){a.href=n.url;a.target="_blank";a.rel="noopener"}
+      d.appendChild(a);d.appendChild(h("div",(n.related?n.related+" · ":"")+n.source+" · "+new Date(n.datetime*1000).toLocaleString("ar-KW"),"sub"));el.appendChild(d)})}
+  try{fill($("gn"),(await api("news?category=general")).slice(0,12))}catch(e){}
+  var all=[];
+  await Promise.all(items.map(async function(i){try{var a=await api("company-news?symbol="+i.s+"&from="+fr+"&to="+to);a.slice(0,3).forEach(function(n){n.related=i.s;all.push(n)})}catch(e){}}));
+  all.sort(function(a,b){return b.datetime-a.datetime});fill($("cn"),all.slice(0,15));
+}
+function draw(){
+  var mk=$("mk");mk.textContent="";
+  ETFS.forEach(function(e){var x=Q[e[0]],c=h("div",null,"c");c.appendChild(h("div",e[1]+" ("+e[0]+")","sub"));
+    c.appendChild(h("div",x&&x.c?f(x.c):"-","v"));c.appendChild(h("div",x&&x.c?f(x.dp)+"%":"","  "+cl(x&&x.dp)));mk.appendChild(c)});
+  var tb=$("tb");tb.textContent="";var cost=0,val=0,al=[];
+  var sp=Q.SPY;if(sp&&Math.abs(sp.dp)>=1.5)al.push("السوق: SPY تحرك "+f(sp.dp)+"% اليوم، حركة قوية للسوق ككل.");
+  items.forEach(function(it,i){
+    var x=Q[it.s]||{},c=x.c,has=c>0,tr=h("tr");
+    function td(t,k){tr.appendChild(h("td",t,k))}
+    var rc=R[it.s],md=M[it.s]||{};
+    td(it.s);td(has?f(c):"-");td(has?f(x.dp)+"%":"-",cl(x.dp));td(f(it.q));td(f(it.b));
+    var pl=has&&it.q&&it.b?(c-it.b)*it.q:NaN;
+    td(isFinite(pl)?f(pl)+" ("+f((c/it.b-1)*100)+"%)":"-",cl(pl));
+    td(it.t?f(it.t):"-");td(it.t&&has?f((it.t/c-1)*100)+"%":"-");
+    td(rc?"شراء "+(rc.strongBuy+rc.buy)+" / احتفاظ "+rc.hold+" / بيع "+(rc.sell+rc.strongSell):"-");
+    var d=h("td"),b=h("button","حذف","x");b.onclick=function(){items.splice(i,1);save();draw()};d.appendChild(b);tr.appendChild(d);tb.appendChild(tr);
+    if(has&&it.q&&it.b){cost+=it.b*it.q;val+=c*it.q}
+    if(has){
+      if(Math.abs(x.dp)>=3)al.push(it.s+": تحرك "+f(x.dp)+"% اليوم، راجع الخبر قبل أي قرار.");
+      if(md["52WeekHigh"]&&c>=md["52WeekHigh"]*0.97)al.push(it.s+": قرب أعلى مستوى في 52 أسبوعاً ("+f(md["52WeekHigh"])+")، قد يكون زخماً أو قمة.");
+      if(md["52WeekLow"]&&c<=md["52WeekLow"]*1.03)al.push(it.s+": قرب أدنى مستوى في 52 أسبوعاً ("+f(md["52WeekLow"])+")، فرصة محتملة أو سكين ساقط، افحص السبب.");
+      if(it.t&&c>=it.t)al.push(it.s+": وصل السعر المتوقع ("+f(it.t)+")، راجع خطة الخروج.");
+      if(it.b&&c<=it.b*0.9)al.push(it.s+": خسارة تتجاوز 10% من سعر شرائك.");
+      if(rc&&rc.sell+rc.strongSell>rc.buy+rc.strongBuy)al.push(it.s+": توصيات المحللين تميل للبيع أكثر من الشراء.");
+    }
+  });
+  $("tot").textContent=cost>0?"القيمة: "+f(val)+" | الربح/الخسارة: "+f(val-cost)+" ("+f((val/cost-1)*100)+"%)":"";
+  $("tot").className=cl(val-cost);
+  var a=$("al");a.textContent="";
+  if(!al.length)a.appendChild(h("div","لا توجد تنبيهات حالياً.","sub"));
+  al.forEach(function(t){a.appendChild(h("div","⚠️ "+t,"al"))});
+}
+$("sk").onclick=function(){KEY=$("key").value.trim()||KEY;localStorage.setItem("fk",KEY);$("key").value="";quotes();meta();news()};
+$("add").onclick=function(){
+  var s=$("s").value.trim().toUpperCase();if(!s)return;
+  function n(id){var v=parseFloat($(id).value);return isFinite(v)?v:null}
+  items.push({s:s,q:n("q"),b:n("b"),t:n("t")});save();
+  ["s","q","b","t"].forEach(function(i){$(i).value=""});
+  draw();quotes();meta();news();
+};
+draw();
+if(KEY){quotes();meta();news()}
+setInterval(quotes,60000);
+</script>
+</body>
+</html>
