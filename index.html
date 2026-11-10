@@ -25,6 +25,10 @@ table{width:100%;border-collapse:collapse;font-size:.86rem}
 th,td{padding:6px;border-bottom:1px solid var(--bd);text-align:right;white-space:nowrap}
 .tw{overflow-x:auto}
 a{color:var(--ac);text-decoration:none}
+.rk{display:inline-block;min-width:26px;text-align:center;border-radius:20px;color:#fff;font-weight:700;padding:0 6px}
+.rk.g1,.fl.g1{background:#0f9d58}.rk.g2,.fl.g2{background:#d99a00}.rk.g3,.fl.g3{background:#8a94a6}
+tr.g1{background:rgba(15,157,88,.10)}tr.g2{background:rgba(217,154,0,.10)}tr.g3{background:rgba(138,148,166,.10)}
+.bar{height:6px;background:var(--bd);border-radius:4px;margin-top:3px;min-width:70px}.fl{height:100%;border-radius:4px}
 .n{padding:8px 0;border-bottom:1px solid var(--bd);font-size:.9rem}
 footer{margin:24px 0;color:var(--mut);font-size:.8rem}
 </style>
@@ -47,7 +51,8 @@ footer{margin:24px 0;color:var(--mut);font-size:.8rem}
 <h2>🎯 فرص خارج محفظتي (توصية محللين قوية)</h2>
 <div class="c"><div class="row"><input id="un" placeholder="أضف رموزاً للمسح: AMD, SHOP"><button id="sc2">مسح الآن</button></div>
 <div class="sub" id="sc" style="margin:6px 0">الشرط: 10 محللين فأكثر، 70% منهم شراء أو أكثر، وبيع 10% أو أقل.</div>
-<div class="tw"><table><thead><tr><th>السهم</th><th>السعر</th><th>اليوم</th><th>نسبة الشراء</th><th>شراء/احتفاظ/بيع</th><th>ملاحظة</th><th></th></tr></thead><tbody id="sb"></tbody></table></div></div>
+<div class="sub" style="margin-bottom:6px">🟢 المراتب 1–4 الأقوى · 🟡 5–7 جيدة · ⚪ 8–10 مقبولة. القوة من 100 = نسبة الشراء (70) + عدد المحللين (20) + غياب توصيات البيع (10).</div>
+<div class="tw"><table><thead><tr><th>#</th><th>السهم</th><th>القوة</th><th>السعر</th><th>اليوم</th><th>نسبة الشراء</th><th>شراء/احتفاظ/بيع</th><th>ملاحظة</th><th></th></tr></thead><tbody id="sb"></tbody></table></div></div>
 <h2>💼 أسهمي</h2>
 <div class="c">
 <div class="row"><input id="s" placeholder="الرمز NVDA" maxlength="10"><input id="q" type="number" step="any" placeholder="الكمية (اختياري)"><input id="b" type="number" step="any" placeholder="سعر الشراء (اختياري)"><input id="t" type="number" step="any" placeholder="السعر المتوقع (اختياري)"><button id="add">إضافة</button></div>
@@ -225,19 +230,24 @@ async function scan(){
       if(!c||now-c.ts>432e5){c=OP[s]={rec:(await api("stock/recommendation?symbol="+s))[0]||null,ts:now}}
       if(!c.rec)return;
       var r=c.rec,t=r.strongBuy+r.buy+r.hold+r.sell+r.strongSell,b=r.strongBuy+r.buy,sl=r.sell+r.strongSell;
-      if(t>=10&&b/t>=0.7&&sl/t<=0.1){var q=await api("quote?symbol="+s);out.push({s:s,c:q.c,dp:q.dp,p:b/t*100,t:t,b:b,h:r.hold,sl:sl})}
+      if(t>=10&&b/t>=0.7&&sl/t<=0.1){var q=await api("quote?symbol="+s);out.push({s:s,c:q.c,dp:q.dp,p:b/t*100,t:t,b:b,h:r.hold,sl:sl,sc:b/t*70+Math.min(t,50)/50*20+(sl===0?10:0)})}
     }catch(e){}}));
     if(k+6<list.length)await sleep(3000);
   }
   try{localStorage.setItem("op",JSON.stringify(OP))}catch(e){}
-  out.sort(function(a,b){return b.p-a.p||b.t-a.t});
+  out.sort(function(a,b){return b.sc-a.sc});
   var tb=$("sb");tb.textContent="";
-  out.slice(0,10).forEach(function(o){
-    var tr=h("tr");function td(t,c){tr.appendChild(h("td",t,c))}
-    td(o.s);td(f(o.c));td(f(o.dp)+"%",cl(o.dp));td(f(o.p)+"%");td(o.b+" / "+o.h+" / "+o.sl);
+  out.slice(0,10).forEach(function(o,i){
+    var g=i<4?"g1":i<7?"g2":"g3",tr=h("tr",null,g);
+    function td(t,c){tr.appendChild(h("td",t,c))}
+    var rk=h("td");rk.appendChild(h("span",String(i+1),"rk "+g));tr.appendChild(rk);
+    td(o.s);
+    var sd=h("td");sd.appendChild(h("b",f(o.sc)+"/100"));
+    var bar=h("div",null,"bar"),fl=h("div",null,"fl "+g);fl.style.width=Math.round(o.sc)+"%";bar.appendChild(fl);sd.appendChild(bar);tr.appendChild(sd);
+    td(f(o.c));td(f(o.dp)+"%",cl(o.dp));td(f(o.p)+"%");td(o.b+" / "+o.h+" / "+o.sl);
     td(o.dp<=-2?"تراجع اليوم، افحص السبب":o.dp>=3?"ارتفع كثيراً اليوم، حذر من المطاردة":"");
-    var d=h("td"),b=h("button","حلّل");b.onclick=function(){$("as").value=o.s;$("an").onclick();$("ao").scrollIntoView({behavior:"smooth"})};
-    d.appendChild(b);tr.appendChild(d);tb.appendChild(tr);
+    var d=h("td"),bt=h("button","حلّل");bt.onclick=function(){$("as").value=o.s;$("an").onclick();$("ao").scrollIntoView({behavior:"smooth"})};
+    d.appendChild(bt);tr.appendChild(d);tb.appendChild(tr);
   });
   $("sc").textContent=out.length?"أقوى "+Math.min(10,out.length)+" نتائج من "+list.length+" سهماً (آخر مسح "+new Date().toLocaleTimeString("ar-KW")+"). توصية المحللين رأي وليست ضماناً.":"لا نتائج تطابق الشرط الآن. إن ظهرت أخطاء، انتظر دقيقة وأعد المسح (حد Finnhub المجاني 60 طلباً/دقيقة).";
   scanning=false;
