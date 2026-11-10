@@ -36,9 +36,7 @@ footer{margin:24px 0;color:var(--mut);font-size:.8rem}
 
 <h2>⚙️ الإعدادات</h2>
 <div class="c"><div class="row"><input id="key" type="password" placeholder="Finnhub API key"><button id="sk">حفظ وتحديث</button></div>
-<div class="sub" style="margin-top:6px">مفتاح مجاني من finnhub.io. يُحفظ في متصفحك فقط، لا ترفعه على GitHub.</div>
-<div class="row" style="margin-top:8px"><input id="ak" type="password" placeholder="Anthropic API key (للترجمة الدقيقة والتحليل)"></div>
-<div class="sub" style="margin-top:6px">مفتاح من console.anthropic.com يُحفظ في متصفحك فقط، حدّد له سقف إنفاق صغيراً. بدونه تعمل الترجمة عبر خدمة مجانية أقل دقة، ولا يعمل التحليل.</div></div>
+<div class="sub" style="margin-top:6px">مفتاح مجاني من finnhub.io. يُحفظ في متصفحك فقط، لا ترفعه على GitHub.</div></div>
 
 <h2>المؤشرات (عبر صناديق ETF)</h2>
 <div class="grid" id="mk"></div>
@@ -59,6 +57,7 @@ footer{margin:24px 0;color:var(--mut);font-size:.8rem}
 
 <h2>🤖 حلّل سهماً أو محفظتي</h2>
 <div class="c"><div class="row"><input id="as" placeholder="الرمز META" maxlength="10"><button id="an">حلّل السهم</button><button id="ap">حلّل محفظتي</button></div>
+<div class="sub" style="margin-top:6px">ملخص آلي بقواعد ثابتة من بيانات Finnhub المجانية، بدون ذكاء اصطناعي.</div>
 <div id="ao" style="white-space:pre-wrap;margin-top:10px"></div></div>
 <h2>📰 أخبار أسهمي</h2><div class="c" id="cn"><div class="sub">—</div></div>
 <h2>📰 أخبار السوق</h2><div class="c" id="gn"><div class="sub">—</div></div>
@@ -70,7 +69,7 @@ var $=function(i){return document.getElementById(i)};
 var KEY=localStorage.getItem("fk")||"",items=[];
 try{items=JSON.parse(localStorage.getItem("pf")||"[]")}catch(e){}
 var ETFS=[["SPY","S&P 500"],["QQQ","Nasdaq 100"],["DIA","Dow"],["IWM","Russell 2000"],["GLD","ذهب"],["USO","نفط"]];
-var Q={},M={},R={},T={},AK=localStorage.getItem("ak")||"";
+var Q={},M={},R={},T={};
 function save(){localStorage.setItem("pf",JSON.stringify(items))}
 function f(n){return isFinite(n)&&n!==null?Number(n).toLocaleString("en-US",{maximumFractionDigits:2}):"-"}
 function cl(n){return n>0?"up":n<0?"dn":""}
@@ -134,7 +133,7 @@ function draw(){
   if(!al.length)a.appendChild(h("div","لا توجد تنبيهات حالياً.","sub"));
   al.forEach(function(t){a.appendChild(h("div","⚠️ "+t,"al"))});
 }
-$("sk").onclick=function(){KEY=$("key").value.trim()||KEY;localStorage.setItem("fk",KEY);$("key").value="";AK=$("ak").value.trim()||AK;localStorage.setItem("ak",AK);$("ak").value="";quotes();meta();news()};
+$("sk").onclick=function(){KEY=$("key").value.trim()||KEY;localStorage.setItem("fk",KEY);$("key").value="";quotes();meta();news()};
 $("add").onclick=function(){
   var s=$("s").value.trim().toUpperCase();if(!s)return;
   function n(id){var v=parseFloat($(id).value);return isFinite(v)?v:null}
@@ -143,49 +142,73 @@ $("add").onclick=function(){
   draw();quotes();meta();news();
 };
 
-async function ask(prompt,model,max){
-  var r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":AK,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:model,max_tokens:max,messages:[{role:"user",content:prompt}]})});
-  var j=await r.json();if(!r.ok)throw new Error(j.error&&j.error.message||r.status);
-  return j.content.map(function(c){return c.text||""}).join("");
-}
 async function trans(list){
   var need=list.filter(function(t){return !T[t]});if(!need.length)return;
-  if(AK){try{
-    var out=await ask("ترجم هذه العناوين الإخبارية المالية إلى العربية. أعد مصفوفة JSON فقط بنفس الترتيب والعدد، بدون أي شرح:\n"+JSON.stringify(need),"claude-haiku-5-5",3000);
-    var arr=JSON.parse(out.replace(/```json|```/g,"").trim());
-    need.forEach(function(t,i){if(arr[i])T[t]=arr[i]});return;
-  }catch(e){}}
   await Promise.all(need.map(async function(t){try{
     var r=await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q="+encodeURIComponent(t));
     var j=await r.json();T[t]=j[0].map(function(x){return x[0]}).join("");
   }catch(e){}}));
 }
-var RULES="اكتب بالعربية وباختصار (أقل من 300 كلمة). لا تعطِ أمر شراء أو بيع صريحاً، وأوضح أن هذا ليس نصيحة مالية. ";
-async function run(build){
+function rng(c,m){var h=m["52WeekHigh"],l=m["52WeekLow"];if(!h||!l||h<=l||!c)return null;return{p:(c-l)/(h-l)*100,fh:(c/h-1)*100,h:h,l:l}}
+function rt(r){if(!r)return null;var t=r.strongBuy+r.buy+r.hold+r.sell+r.strongSell;if(!t)return null;var b=r.strongBuy+r.buy,s=r.sell+r.strongSell;return{t:t,b:b,h:r.hold,s:s,p:b/t*100}}
+async function analyze(sym){
   var o=$("ao");
-  if(!AK){o.textContent="أضف مفتاح Anthropic في الإعدادات أولاً.";return}
   if(!KEY){o.textContent="أضف مفتاح Finnhub أولاً.";return}
-  o.textContent="جارٍ التحليل...";
-  try{o.textContent=await ask(await build(),"claude-sonnet-5-5",1200)}catch(e){o.textContent="تعذّر التحليل: "+e.message}
-}
-$("an").onclick=function(){
-  var sym=$("as").value.trim().toUpperCase();if(!sym)return;
-  run(async function(){
+  o.textContent="جارٍ جلب البيانات...";
+  try{
     var to=new Date().toISOString().slice(0,10),fr=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
     var r=await Promise.all([api("quote?symbol="+sym),api("stock/metric?symbol="+sym+"&metric=all").catch(function(){return{}}),api("stock/recommendation?symbol="+sym).catch(function(){return[]}),api("company-news?symbol="+sym+"&from="+fr+"&to="+to).catch(function(){return[]})]);
-    var m=r[1].metric||{};
-    var d={symbol:sym,quote:r[0],high52:m["52WeekHigh"],low52:m["52WeekLow"],pe:m.peTTM,analysts:r[2][0]||null,headlines:r[3].slice(0,6).map(function(n){return n.headline}),myPosition:items.filter(function(i){return i.s===sym})[0]||null};
-    return "أنت محلل أسهم أمريكية. حلّل السهم من البيانات الحية التالية: الوضع الفني والأساسي المختصر، ما يفسّر حركة اليوم من الأخبار، نقاط القوة والمخاطر، وأحداث أو مستويات للمراقبة. إن وُجد myPosition (q الكمية، b سعر الشراء، t الهدف) فقيّم واقعية الهدف. "+RULES+"\n"+JSON.stringify(d);
+    var q=r[0],m=r[1].metric||{},rc=rt(r[2][0]),nw=r[3].slice(0,5),it=items.filter(function(i){return i.s===sym})[0];
+    if(!q||!q.c)throw new Error("الرمز غير صحيح أو لا توجد بيانات");
+    var L=["📌 "+sym+": "+f(q.c)+" ("+f(q.dp)+"% اليوم)"],good=[],warn=[];
+    var g=rng(q.c,m);
+    if(g){L.push("• نطاق 52 أسبوعاً: "+f(g.l)+" إلى "+f(g.h)+"، والسعر عند "+f(g.p)+"% من النطاق وأقل من القمة بـ"+f(-g.fh)+"%.");
+      if(g.p>=90)warn.push("قرب القمة السنوية، مطاردة السعر هنا خطرة.");else if(g.p<=15)warn.push("قرب القاع السنوي، افحص سبب الضعف قبل اعتباره فرصة.")}
+    if(m.peTTM){L.push("• مكرر الربحية: "+f(m.peTTM));if(m.peTTM>40)warn.push("التقييم مرتفع نسبياً.");else if(m.peTTM>0&&m.peTTM<15)good.push("التقييم منخفض نسبياً (تحقق من السبب).")}
+    if(m.revenueGrowthTTMYoy!=null){L.push("• نمو الإيرادات السنوي: "+f(m.revenueGrowthTTMYoy)+"%");if(m.revenueGrowthTTMYoy>15)good.push("نمو إيرادات قوي.");else if(m.revenueGrowthTTMYoy<0)warn.push("الإيرادات متراجعة.")}
+    if(m.netProfitMarginTTM!=null)L.push("• هامش صافي الربح: "+f(m.netProfitMarginTTM)+"%");
+    if(m.beta){L.push("• بيتا (التقلب مقابل السوق): "+f(m.beta));if(m.beta>1.5)warn.push("تقلبه أعلى بكثير من السوق.")}
+    if(m["13WeekPriceReturnDaily"]!=null)L.push("• عائد 13 أسبوعاً: "+f(m["13WeekPriceReturnDaily"])+"%");
+    if(m["52WeekPriceReturnDaily"]!=null)L.push("• عائد 52 أسبوعاً: "+f(m["52WeekPriceReturnDaily"])+"%");
+    if(rc){L.push("• المحللون: "+rc.b+" شراء / "+rc.h+" احتفاظ / "+rc.s+" بيع ("+f(rc.p)+"% شراء)");
+      if(rc.p>=70&&rc.s/rc.t<=0.1)good.push("إجماع محللين إيجابي (وقد يكون مسعّراً بالفعل).");else if(rc.s>rc.b)warn.push("المحللون يميلون للبيع.")}
+    if(Math.abs(q.dp)>=3)warn.push("حركة يومية كبيرة ("+f(q.dp)+"%)، اقرأ الخبر وراء الحركة.");
+    if(it&&it.b){var pl=(q.c/it.b-1)*100;L.push("• مركزك: "+f(pl)+"% عن سعر شرائك "+f(it.b));if(pl<=-10)warn.push("خسارتك تتجاوز 10%.")}
+    if(it&&it.t){var d=(it.t/q.c-1)*100;L.push("• المسافة للهدف ("+f(it.t)+"): "+f(d)+"%");if(d>30)warn.push("هدفك بعيد (+"+f(d)+"%)، يحتاج مبررات قوية.");else if(d<=0)good.push("بلغ السعر هدفك، راجع خطة الخروج.")}
+    if(good.length){L.push("");L.push("✅ عوامل داعمة:");good.forEach(function(x){L.push("- "+x)})}
+    if(warn.length){L.push("");L.push("⚠️ عوامل حذر:");warn.forEach(function(x){L.push("- "+x)})}
+    if(nw.length){await trans(nw.map(function(n){return n.headline}));L.push("");L.push("📰 أحدث الأخبار:");nw.forEach(function(n){L.push("- "+(T[n.headline]||n.headline))})}
+    L.push("");L.push("هذا ملخص آلي بقواعد ثابتة من بيانات Finnhub، وليس نصيحة استثمارية.");
+    o.textContent=L.join("\n");
+  }catch(e){o.textContent="تعذّر التحليل: "+e.message}
+}
+$("an").onclick=function(){var sym=$("as").value.trim().toUpperCase();if(sym)analyze(sym)};
+$("ap").onclick=async function(){
+  var o=$("ao");
+  if(!KEY){o.textContent="أضف مفتاح Finnhub أولاً.";return}
+  if(!items.length){o.textContent="أضف أسهماً أولاً.";return}
+  o.textContent="جارٍ التحليل...";
+  await quotes();await meta();
+  var tot=0;items.forEach(function(i){var x=Q[i.s];if(x&&x.c&&i.q)tot+=x.c*i.q});
+  var L=["💼 ملخص المحفظة"],warn=[];
+  items.forEach(function(i){
+    var x=Q[i.s]||{},m=M[i.s]||{},rc=rt(R[i.s]),g=rng(x.c,m),p=[];
+    if(x.c)p.push(f(x.c)+" ("+f(x.dp)+"% اليوم)");
+    if(i.b&&x.c)p.push("ربح/خسارة "+f((x.c/i.b-1)*100)+"%");
+    if(i.t&&x.c)p.push("للهدف "+f((i.t/x.c-1)*100)+"%");
+    if(g)p.push("عند "+f(g.p)+"% من نطاق 52 أسبوعاً");
+    if(rc)p.push("المحللون "+f(rc.p)+"% شراء");
+    if(i.q&&x.c&&tot>0){var sh=x.c*i.q/tot*100;p.push("وزنه "+f(sh)+"%");if(sh>40)warn.push(i.s+" يمثل "+f(sh)+"% من محفظتك، تركّز عالٍ.")}
+    if(i.b&&x.c&&x.c/i.b-1<=-0.1)warn.push(i.s+": خسارة تتجاوز 10%.");
+    if(i.t&&x.c&&i.t/x.c-1>0.3)warn.push(i.s+": الهدف أبعد من 30% عن السعر الحالي.");
+    if(g&&g.p>=90)warn.push(i.s+": قرب القمة السنوية.");
+    if(rc&&rc.s>rc.b)warn.push(i.s+": المحللون يميلون للبيع.");
+    L.push("• "+i.s+": "+p.join(" | "));
   });
+  if(warn.length){L.push("");L.push("⚠️ عوامل حذر:");warn.forEach(function(x){L.push("- "+x)})}
+  L.push("");L.push("ملخص آلي بقواعد ثابتة، وليس نصيحة استثمارية.");
+  o.textContent=L.join("\n");
 };
-$("ap").onclick=function(){
-  run(async function(){
-    if(!items.length)throw new Error("أضف أسهماً أولاً");
-    var d=items.map(function(i){var x=Q[i.s]||{},m=M[i.s]||{};return{symbol:i.s,qty:i.q,buy:i.b,target:i.t,price:x.c,dayPct:x.dp,high52:m["52WeekHigh"],low52:m["52WeekLow"],analysts:R[i.s]||null}});
-    return "أنت محلل أسهم أمريكية. قيّم هذه المحفظة: تركّز المخاطر، واقعية الهدف لكل سهم مقارنة بسعر الشراء والسعر الحالي، وما يجب مراقبته لكل سهم. "+RULES+"\n"+JSON.stringify(d);
-  });
-};
-
 var EX=(localStorage.getItem("uni")||"").split(",").filter(Boolean);
 var BASE="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,NFLX,CRM,ORCL,JPM,V,MA,LLY,COST,WMT,CAT,GE,XOM,PLTR,UBER,NET".split(",");
 var OP={};try{OP=JSON.parse(localStorage.getItem("op")||"{}")}catch(e){}
