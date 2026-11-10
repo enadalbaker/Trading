@@ -52,7 +52,7 @@ footer{margin:24px 0;color:var(--mut);font-size:.8rem}
 <div class="c"><div class="row"><input id="un" placeholder="أضف رموزاً للمسح: AMD, SHOP"><button id="sc2">مسح الآن</button></div>
 <div class="sub" id="sc" style="margin:6px 0">الشرط: 10 محللين فأكثر، 70% منهم شراء أو أكثر، وبيع 10% أو أقل.</div>
 <div class="sub" style="margin-bottom:6px">🟢 المراتب 1–4 الأقوى · 🟡 5–7 جيدة · ⚪ 8–10 مقبولة. القوة من 100 = نسبة الشراء (70) + عدد المحللين (20) + غياب توصيات البيع (10).</div>
-<div class="tw"><table><thead><tr><th>#</th><th>السهم</th><th>القوة</th><th>السعر</th><th>اليوم</th><th>نسبة الشراء</th><th>شراء/احتفاظ/بيع</th><th>ملاحظة</th><th></th></tr></thead><tbody id="sb"></tbody></table></div></div>
+<div class="tw"><table><thead><tr><th>#</th><th>السهم</th><th>القوة</th><th>السعر</th><th>اليوم</th><th>الهدف الأول</th><th>هدف المحللين (12 شهراً)</th><th>نسبة الشراء</th><th>شراء/احتفاظ/بيع</th><th>ملاحظة</th><th></th></tr></thead><tbody id="sb"></tbody></table></div></div>
 <h2>💼 أسهمي</h2>
 <div class="c">
 <div class="row"><input id="s" placeholder="الرمز NVDA" maxlength="10"><input id="q" type="number" step="any" placeholder="الكمية (اختياري)"><input id="b" type="number" step="any" placeholder="سعر الشراء (اختياري)"><input id="t" type="number" step="any" placeholder="السعر المتوقع (اختياري)"><button id="add">إضافة</button></div>
@@ -177,6 +177,12 @@ async function analyze(sym){
     if(m["52WeekPriceReturnDaily"]!=null)L.push("• عائد 52 أسبوعاً: "+f(m["52WeekPriceReturnDaily"])+"%");
     if(rc){L.push("• المحللون: "+rc.b+" شراء / "+rc.h+" احتفاظ / "+rc.s+" بيع ("+f(rc.p)+"% شراء)");
       if(rc.p>=70&&rc.s/rc.t<=0.1)good.push("إجماع محللين إيجابي (وقد يكون مسعّراً بالفعل).");else if(rc.s>rc.b)warn.push("المحللون يميلون للبيع.")}
+    var tp=await pt(sym);
+    if(tp){var up=(tp.targetMean/q.c-1)*100;L.push("• هدف المحللين: متوسط "+f(tp.targetMean)+" (من "+f(tp.targetLow)+" إلى "+f(tp.targetHigh)+")، الصعود للمتوسط "+f(up)+"%");
+      if(up<0)warn.push("السعر فوق متوسط أهداف المحللين.");else if(up>=20)good.push("متوسط أهداف المحللين أعلى من السعر بـ"+f(up)+"% (الأهداف تتغير وكثيراً ما تتأخر).")}
+    else if(noPT)L.push("• هدف المحللين: غير متاح في خطة Finnhub الحالية.");
+    var f1=first(q.c,m,tp?tp.targetMean:null);
+    if(f1)L.push("• الهدف الأول (أقرب سقف: قمة 52 أسبوعاً أو متوسط المحللين): "+f(f1)+" (+"+f((f1/q.c-1)*100)+"%)");
     if(Math.abs(q.dp)>=3)warn.push("حركة يومية كبيرة ("+f(q.dp)+"%)، اقرأ الخبر وراء الحركة.");
     if(it&&it.b){var pl=(q.c/it.b-1)*100;L.push("• مركزك: "+f(pl)+"% عن سعر شرائك "+f(it.b));if(pl<=-10)warn.push("خسارتك تتجاوز 10%.")}
     if(it&&it.t){var d=(it.t/q.c-1)*100;L.push("• المسافة للهدف ("+f(it.t)+"): "+f(d)+"%");if(d>30)warn.push("هدفك بعيد (+"+f(d)+"%)، يحتاج مبررات قوية.");else if(d<=0)good.push("بلغ السعر هدفك، راجع خطة الخروج.")}
@@ -218,7 +224,14 @@ var EX=(localStorage.getItem("uni")||"").split(",").filter(Boolean);
 var BASE="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,NFLX,CRM,ORCL,JPM,V,MA,LLY,COST,WMT,CAT,GE,XOM,PLTR,UBER,NET".split(",");
 var OP={};try{OP=JSON.parse(localStorage.getItem("op")||"{}")}catch(e){}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
-var scanning=false;
+var scanning=false,PT={},noPT=false;
+function first(c,mm,tm){var h=mm&&mm["52WeekHigh"];if(h&&h>c*1.005)return h;if(tm&&tm>c*1.005)return tm;return null}
+async function pt(s){
+  if(noPT)return null;
+  if(PT[s]&&Date.now()-PT[s].ts<432e5)return PT[s].v;
+  try{var r=await api("stock/price-target?symbol="+s);var v=r&&r.targetMean?r:null;PT[s]={v:v,ts:Date.now()};return v}
+  catch(e){if(/40[13]/.test(e.message))noPT=true;return null}
+}
 async function scan(){
   if(!KEY||scanning)return;scanning=true;
   var all=BASE.concat(EX).filter(function(s,i,a){return a.indexOf(s)===i});
@@ -230,7 +243,7 @@ async function scan(){
       if(!c||now-c.ts>432e5){c=OP[s]={rec:(await api("stock/recommendation?symbol="+s))[0]||null,ts:now}}
       if(!c.rec)return;
       var r=c.rec,t=r.strongBuy+r.buy+r.hold+r.sell+r.strongSell,b=r.strongBuy+r.buy,sl=r.sell+r.strongSell;
-      if(t>=10&&b/t>=0.7&&sl/t<=0.1){var q=await api("quote?symbol="+s);out.push({s:s,c:q.c,dp:q.dp,p:b/t*100,t:t,b:b,h:r.hold,sl:sl,sc:b/t*70+Math.min(t,50)/50*20+(sl===0?10:0)})}
+      if(t>=10&&b/t>=0.7&&sl/t<=0.1){var q=await api("quote?symbol="+s),tp=await pt(s),mm=M[s];if(!mm){try{mm=M[s]=(await api("stock/metric?symbol="+s+"&metric=all")).metric||{}}catch(e){mm={}}}out.push({f1:first(q.c,mm,tp?tp.targetMean:null),tm:tp?tp.targetMean:null,th:tp?tp.targetHigh:null,tl:tp?tp.targetLow:null,s:s,c:q.c,dp:q.dp,p:b/t*100,t:t,b:b,h:r.hold,sl:sl,sc:b/t*70+Math.min(t,50)/50*20+(sl===0?10:0)})}
     }catch(e){}}));
     if(k+6<list.length)await sleep(3000);
   }
@@ -244,12 +257,13 @@ async function scan(){
     td(o.s);
     var sd=h("td");sd.appendChild(h("b",f(o.sc)+"/100"));
     var bar=h("div",null,"bar"),fl=h("div",null,"fl "+g);fl.style.width=Math.round(o.sc)+"%";bar.appendChild(fl);sd.appendChild(bar);tr.appendChild(sd);
-    td(f(o.c));td(f(o.dp)+"%",cl(o.dp));td(f(o.p)+"%");td(o.b+" / "+o.h+" / "+o.sl);
+    td(f(o.c));td(f(o.dp)+"%",cl(o.dp));td(o.f1?f(o.f1)+" (+"+f((o.f1/o.c-1)*100)+"%)":"-");td(o.tm?f(o.tm)+" ("+(o.tm>=o.c?"+":"")+f((o.tm/o.c-1)*100)+"%)":"-",o.tm?cl(o.tm-o.c):"");td(f(o.p)+"%");td(o.b+" / "+o.h+" / "+o.sl);
     td(o.dp<=-2?"تراجع اليوم، افحص السبب":o.dp>=3?"ارتفع كثيراً اليوم، حذر من المطاردة":"");
     var d=h("td"),bt=h("button","حلّل");bt.onclick=function(){$("as").value=o.s;$("an").onclick();$("ao").scrollIntoView({behavior:"smooth"})};
     d.appendChild(bt);tr.appendChild(d);tb.appendChild(tr);
   });
   $("sc").textContent=out.length?"أقوى "+Math.min(10,out.length)+" نتائج من "+list.length+" سهماً (آخر مسح "+new Date().toLocaleTimeString("ar-KW")+"). توصية المحللين رأي وليست ضماناً.":"لا نتائج تطابق الشرط الآن. إن ظهرت أخطاء، انتظر دقيقة وأعد المسح (حد Finnhub المجاني 60 طلباً/دقيقة).";
+  if(noPT)$("sc").textContent+=" (هدف المحللين السعري غير متاح في خطة Finnhub الحالية.)";
   scanning=false;
 }
 $("sc2").onclick=function(){
